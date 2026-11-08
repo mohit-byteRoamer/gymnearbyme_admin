@@ -92,10 +92,10 @@ export function GymsPage() {
     return gyms.filter((g) => g.status === 'SUSPENDED' || g.status === 'BLOCKED')
   }, [gyms])
 
-  // Count checklist items verified
+  // Count checklist items verified (Documents, Photos, Address and pin, Plans and agreement)
   const getVerificationProgress = (checklist: GymChecklist) => {
-    const keys: (keyof GymChecklist)[] = ['documents', 'photos', 'address', 'upiVpa']
-    const verifiedCount = keys.filter((k) => checklist[k]).length
+    const keys: (keyof GymChecklist)[] = ['documents', 'photos', 'address', 'plansAgreement']
+    const verifiedCount = keys.filter((k) => checklist && checklist[k]).length
     return { verifiedCount, total: 4 }
   }
 
@@ -401,6 +401,32 @@ export function GymsPage() {
               </div>
             </DialogHeader>
 
+            {/* Duplicate Flag Banner */}
+            {(() => {
+              const dupes = gyms.filter(
+                (g) =>
+                  g.id !== selectedGym.id &&
+                  ((g.phone && selectedGym.phone && g.phone.replace(/\D/g, '') === selectedGym.phone.replace(/\D/g, '')) ||
+                   (g.name.trim().toLowerCase() === selectedGym.name.trim().toLowerCase() && g.locality.trim().toLowerCase() === selectedGym.locality.trim().toLowerCase()))
+              )
+              const hasFlags = (selectedGym.duplicateFlags && selectedGym.duplicateFlags.length > 0) || dupes.length > 0
+              if (!hasFlags) return null
+              return (
+                <div className="rounded-control bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 my-2">
+                  <span className="font-bold flex items-center gap-1.5 text-amber-950 mb-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    Duplicate warning detected
+                  </span>
+                  {selectedGym.duplicateFlags?.map((f, i) => (
+                    <div key={i}>• {f.message}</div>
+                  ))}
+                  {dupes.map((d, i) => (
+                    <div key={`d-${i}`}>• Matches registered gym &quot;{d.name}&quot; ({d.locality}, phone {d.phone})</div>
+                  ))}
+                </div>
+              )
+            })()}
+
             {/* Two-Column Layout (Left: Documents Checklist, Right: Summary + Actions) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-2 text-sm">
               {/* Left Column: Documents & Verification Checklist */}
@@ -476,25 +502,25 @@ export function GymsPage() {
                     </div>
                   </label>
 
-                  {/* Checklist 4: UPI / Payout */}
+                  {/* Checklist 4: Plans and Agreement */}
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={selectedGym.checklist?.upiVpa || false}
+                      checked={selectedGym.checklist?.plansAgreement || false}
                       onChange={(e) => {
                         const checked = e.target.checked
-                        updateGymChecklist(selectedGym.id, 'upiVpa', checked)
+                        updateGymChecklist(selectedGym.id, 'plansAgreement', checked)
                         setSelectedGym((prev) =>
                           prev
-                            ? { ...prev, checklist: { ...prev.checklist, upiVpa: checked } }
+                            ? { ...prev, checklist: { ...prev.checklist, plansAgreement: checked } }
                             : null
                         )
                       }}
                       className="mt-0.5 h-4 w-4 rounded-control border-border text-primary focus:ring-primary"
                     />
                     <div>
-                      <span className="font-medium text-text block">Settlement UPI VPA & bank details</span>
-                      <span className="text-xs text-textMuted block">{selectedGym.upiVpa || 'VPA registered'}</span>
+                      <span className="font-medium text-text block">Plans and agreement</span>
+                      <span className="text-xs text-textMuted block">Active plans configured and commercial agreement signed</span>
                     </div>
                   </label>
                 </div>
@@ -554,7 +580,15 @@ export function GymsPage() {
                     </div>
                     <div className="flex justify-between py-1 border-b border-border items-center">
                       <span className="text-textMuted">Linked account status</span>
-                      <Badge variant="green">Activated</Badge>
+                      <Badge variant={
+                        selectedGym.payoutAccountStatus === 'activated' ? 'green' :
+                        selectedGym.payoutAccountStatus === 'needs_info' ? 'red' :
+                        selectedGym.payoutAccountStatus === 'pending' ? 'yellow' : 'neutral'
+                      }>
+                        {selectedGym.payoutAccountStatus === 'activated' ? 'Activated' :
+                         selectedGym.payoutAccountStatus === 'needs_info' ? 'Needs info' :
+                         selectedGym.payoutAccountStatus === 'pending' ? 'Pending' : 'Not started'}
+                      </Badge>
                     </div>
                     <div className="flex justify-between py-1 border-b border-border">
                       <span className="text-textMuted">Held balance</span>

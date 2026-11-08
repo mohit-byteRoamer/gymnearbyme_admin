@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useAdmin } from '@/context/admin-store'
-import { Gym, GymChecklist, GymMedia, GymPlan, Review, Voucher } from '@/types'
+import { Gym, GymChecklist, GymDocument, GymMedia, GymPlan, Review, Voucher } from '@/types'
 import { PaymentTransaction, RouteTransfer, PaymentStatus } from '@/types/payments'
 import { paymentsApi, formatIndianCurrency, formatWaitingTime } from '@/lib/payments-api'
 import { formatDate } from '@/lib/utils'
@@ -137,6 +137,8 @@ export function GymDetailPage() {
   const [rejectReason, setRejectReason] = useState('')
   const [showChangesDialog, setShowChangesDialog] = useState(false)
   const [changesNote, setChangesNote] = useState('')
+  const [flaggedSections, setFlaggedSections] = useState<Record<string, string>>({})
+  const [viewingDoc, setViewingDoc] = useState<GymDocument | null>(null)
   const [showSuspendDialog, setShowSuspendDialog] = useState(false)
   const [suspendReason, setSuspendReason] = useState('')
   const [showBlockDialog, setShowBlockDialog] = useState(false)
@@ -325,10 +327,60 @@ export function GymDetailPage() {
     .filter((t) => t.status === 'Settled' || t.status === 'Released')
     .reduce((sum, t) => sum + t.gymSharePaise, 0)
 
-  // Checklist counts
-  const checklistVerifiedCount = ['documents', 'photos', 'address', 'upiVpa'].filter(
+  // Checklist counts (4 items: Documents, Photos, Address and pin, Plans and agreement)
+  const checklistVerifiedCount = ['documents', 'photos', 'address', 'plansAgreement'].filter(
     (k) => gym.checklist[k as keyof GymChecklist]
   ).length
+
+  // Duplicate checks (same phone, PAN, bank account, or same name and location)
+  const duplicateFlags = useMemo(() => {
+    if (!gym) return []
+    const flags: { field: string; message: string }[] = []
+    const otherGyms = gyms.filter((g) => g.id !== gym.id)
+
+    if (gym.phone) {
+      const cleanPhone = gym.phone.replace(/\D/g, '')
+      const match = otherGyms.find((g) => g.phone && g.phone.replace(/\D/g, '') === cleanPhone)
+      if (match) {
+        flags.push({ field: 'phone', message: `Phone number matches registered gym "${match.name}"` })
+      }
+    }
+
+    if (gym.name && gym.locality) {
+      const match = otherGyms.find(
+        (g) =>
+          g.name.trim().toLowerCase() === gym.name.trim().toLowerCase() &&
+          g.locality.trim().toLowerCase() === gym.locality.trim().toLowerCase()
+      )
+      if (match) {
+        flags.push({
+          field: 'name_location',
+          message: `Name and locality match existing listing "${match.name}" in ${match.locality}`,
+        })
+      }
+    }
+
+    const currentBankLast4 = gym.bankAccountLast4 || gym.bankDetails?.accountNumber?.slice(-4)
+    if (currentBankLast4) {
+      const match = otherGyms.find(
+        (g) =>
+          (g.bankAccountLast4 && g.bankAccountLast4 === currentBankLast4) ||
+          (g.bankDetails?.accountNumber && g.bankDetails.accountNumber.slice(-4) === currentBankLast4)
+      )
+      if (match) {
+        flags.push({
+          field: 'bank_account',
+          message: `Bank account ending in ...${currentBankLast4} matches registered gym "${match.name}"`,
+        })
+      }
+    }
+
+    if (gym.duplicateFlags) {
+      flags.push(...gym.duplicateFlags.filter((f) => !flags.some((ex) => ex.field === f.field)))
+    }
+
+    return flags
+  }, [gym, gyms])
 
   return (
     <div className="space-y-6 font-roboto pb-12">
@@ -354,6 +406,24 @@ export function GymDetailPage() {
           </a>
         </div>
       </div>
+
+      {/* Duplicate Registration Flags Warning */}
+      {duplicateFlags.length > 0 && (
+        <div className="rounded-card bg-amber-50 border border-amber-200 p-4 text-xs text-amber-900 space-y-2 shadow-subtle">
+          <div className="flex items-center gap-2 font-bold text-sm text-amber-950">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" strokeWidth={1.75} />
+            <span>Duplicate Registration Warning ({duplicateFlags.length} flags detected)</span>
+          </div>
+          <ul className="list-disc pl-5 space-y-1 text-amber-900">
+            {duplicateFlags.map((flag, idx) => (
+              <li key={idx}>
+                <strong className="capitalize">{flag.field.replace('_', ' ')}: </strong>
+                <span>{flag.message}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* 2. Gym Header Card */}
       <div className="rounded-card border border-border bg-surface p-6 shadow-subtle space-y-4">
@@ -733,15 +803,38 @@ export function GymDetailPage() {
 
               <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between pb-2 border-b border-border">
-                  <span className="text-textSubtle text-xs">Linked Status</span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-successBg text-successText">
-                    <CheckCircle2 className="w-3 h-3" />
-                    Activated
-                  </span>
+                  <span className="text-textSubtle text-xs">Payout Account Status</span>
+                  {(() => {
+                    const status = gym.payoutAccountStatus || (gym.payoutsEnabled ? 'activated' : 'pending')
+                    const variant =
+                      status === 'activated'
+                        ? 'bg-successBg text-successText'
+                        : status === 'needs_info'
+                        ? 'bg-dangerBg text-dangerText'
+                        : status === 'pending'
+                        ? 'bg-warningBg text-warningText'
+                        : 'bg-background text-textMuted border border-border'
+                    const label =
+                      status === 'activated'
+                        ? 'Activated'
+                        : status === 'needs_info'
+                        ? 'Needs info'
+                        : status === 'pending'
+                        ? 'Pending review'
+                        : 'Not started'
+                    return (
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${variant}`}>
+                        {status === 'activated' && <CheckCircle2 className="w-3 h-3" />}
+                        {status === 'pending' && <Clock className="w-3 h-3" />}
+                        {status === 'needs_info' && <AlertTriangle className="w-3 h-3" />}
+                        {label}
+                      </span>
+                    )
+                  })()}
                 </div>
 
                 <div>
-                  <span className="text-textSubtle text-xs block">Account Name</span>
+                  <span className="text-textSubtle text-xs block">Account Holder Name</span>
                   <span className="text-text font-medium">{gym.bankDetails.accountName}</span>
                 </div>
 
@@ -753,7 +846,14 @@ export function GymDetailPage() {
                 <div>
                   <span className="text-textSubtle text-xs block">Account Number</span>
                   <span className="font-mono text-text font-medium">
-                    •••• •••• {gym.bankDetails.accountNumber.slice(-4)}
+                    •••• •••• •••• {gym.bankAccountLast4 || gym.bankDetails.accountNumber.slice(-4)}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-textSubtle text-xs block">Business PAN</span>
+                  <span className="font-mono text-text font-medium">
+                    •••• •••• {gym.panLast4 || '8274'}
                   </span>
                 </div>
 
@@ -780,12 +880,12 @@ export function GymDetailPage() {
 
               <div className="space-y-2.5">
                 {[
-                  { key: 'documents', label: 'Business & KYC Documents' },
-                  { key: 'photos', label: 'Facility Photos & Media' },
-                  { key: 'address', label: 'Address & Geo Location' },
-                  { key: 'upiVpa', label: 'Bank Account & UPI VPA' },
+                  { key: 'documents', label: 'Documents' },
+                  { key: 'photos', label: 'Photos' },
+                  { key: 'address', label: 'Address and pin' },
+                  { key: 'plansAgreement', label: 'Plans and agreement' },
                 ].map((item) => {
-                  const isChecked = gym.checklist[item.key as keyof GymChecklist]
+                  const isChecked = !!gym.checklist[item.key as keyof GymChecklist]
                   return (
                     <label
                       key={item.key}
@@ -1471,15 +1571,25 @@ export function GymDetailPage() {
                   <Badge variant={doc.verified ? 'green' : 'yellow'}>
                     {doc.verified ? 'VERIFIED' : 'PENDING'}
                   </Badge>
-                  <a
-                    href={doc.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium"
-                  >
-                    <span>View File</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setViewingDoc(doc)}
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>View Document</span>
+                    </button>
+                    <span className="text-textSubtle">•</span>
+                    <a
+                      href={doc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-textMuted hover:text-text font-medium"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1492,6 +1602,58 @@ export function GymDetailPage() {
         payment={selectedDrawerPayment}
         onClose={() => setSelectedDrawerPayment(null)}
       />
+
+      {/* Document Viewer Modal */}
+      {viewingDoc && (
+        <Dialog open={true} onOpenChange={() => setViewingDoc(null)}>
+          <DialogContent className="max-w-2xl bg-surface border border-border">
+            <DialogHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogTitle>{viewingDoc.name}</DialogTitle>
+                  <DialogDescription>
+                    Document type: {viewingDoc.type.toUpperCase().replace('_', ' ')} • Uploaded {formatDate(viewingDoc.uploadedAt)}
+                  </DialogDescription>
+                </div>
+                <Badge variant={viewingDoc.verified ? 'green' : 'yellow'}>
+                  {viewingDoc.verified ? 'VERIFIED' : 'PENDING'}
+                </Badge>
+              </div>
+            </DialogHeader>
+
+            <div className="p-6 bg-background border border-border rounded-control space-y-4 my-2 text-center">
+              <div className="w-16 h-16 rounded-full bg-primaryLight text-primary flex items-center justify-center mx-auto">
+                <FileText className="w-8 h-8" strokeWidth={1.75} />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-text">{viewingDoc.name}</h4>
+                <p className="text-xs text-textMuted mt-1 font-mono">{viewingDoc.url}</p>
+              </div>
+              <div className="p-3 bg-surface border border-border rounded-control text-xs text-textMuted max-w-md mx-auto text-left space-y-1">
+                <div className="font-bold text-text">Compliance Record Information:</div>
+                <div>• Storage: Private encrypted compliance repository</div>
+                <div>• Format: Verified PDF/Image</div>
+                <div>• Status: {viewingDoc.verified ? 'Verified by Admin Team' : 'Pending Administrative Review'}</div>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-3">
+              <Button variant="outline" onClick={() => setViewingDoc(null)}>
+                Close Viewer
+              </Button>
+              <a
+                href={viewingDoc.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-medium rounded-control border border-border bg-surface text-text hover:bg-background transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Open Original File</span>
+              </a>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Enhanced Media Preview Modal (Fullscreen Lightbox with Slideshow & Filmstrip) */}
       {activeLightboxMedia && activeLightboxIndex !== null && gym && (
@@ -1794,36 +1956,125 @@ export function GymDetailPage() {
         </Dialog>
       )}
 
-      {/* Confirmation Dialog: Request Changes */}
+      {/* Confirmation Dialog: Section-Level Request Changes */}
       {showChangesDialog && (
         <Dialog open={showChangesDialog} onOpenChange={setShowChangesDialog}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-lg bg-surface border border-border">
             <DialogHeader>
-              <DialogTitle>Request Changes from Gym Owner</DialogTitle>
+              <DialogTitle>Request Section Changes</DialogTitle>
               <DialogDescription>
-                Specify what information or documents the partner needs to update.
+                Select which onboarding sections need revision and provide specific instructions for the gym owner.
               </DialogDescription>
             </DialogHeader>
-            <textarea
-              value={changesNote}
-              onChange={(e) => setChangesNote(e.target.value)}
-              placeholder="e.g. Please re-upload a clearer image of your cancelled bank cheque."
-              rows={3}
-              className="w-full text-sm p-3 bg-surface border border-border rounded-control text-text"
-            />
-            <DialogFooter>
+
+            <div className="space-y-4 py-2">
+              <div>
+                <label className="text-xs font-bold text-text uppercase tracking-wider block mb-1.5">
+                  Select Flagged Sections
+                </label>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {[
+                    { id: 'basics', label: 'Owner & Gym Basics' },
+                    { id: 'location', label: 'Location & Map Pin' },
+                    { id: 'timings', label: 'Timings & Facilities' },
+                    { id: 'media', label: 'Photos & Videos' },
+                    { id: 'plans', label: 'Plans & Trainers' },
+                    { id: 'documents', label: 'Proof Documents' },
+                    { id: 'payout', label: 'Bank & Payout KYC' },
+                  ].map((sec) => {
+                    const isSelected = sec.id in flaggedSections
+                    return (
+                      <button
+                        key={sec.id}
+                        type="button"
+                        onClick={() => {
+                          setFlaggedSections((prev) => {
+                            const copy = { ...prev }
+                            if (isSelected) {
+                              delete copy[sec.id]
+                            } else {
+                              copy[sec.id] = ''
+                            }
+                            return copy
+                          })
+                        }}
+                        className={`p-2.5 rounded-control text-left border transition-colors ${
+                          isSelected
+                            ? 'border-primary bg-primaryLight text-primary font-bold'
+                            : 'border-border bg-background text-text hover:bg-surface'
+                        }`}
+                      >
+                        {sec.label} {isSelected && '✓'}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {Object.keys(flaggedSections).length > 0 && (
+                <div className="space-y-3 pt-2 border-t border-border">
+                  <label className="text-xs font-bold text-text uppercase tracking-wider block">
+                    Reason per Flagged Section
+                  </label>
+                  {Object.keys(flaggedSections).map((secId) => {
+                    const secLabels: Record<string, string> = {
+                      basics: 'Owner & Gym Basics',
+                      location: 'Location & Map Pin',
+                      timings: 'Timings & Facilities',
+                      media: 'Photos & Videos',
+                      plans: 'Plans & Trainers',
+                      documents: 'Proof Documents',
+                      payout: 'Bank & Payout KYC',
+                    }
+                    return (
+                      <div key={secId} className="space-y-1">
+                        <span className="text-xs font-semibold text-text">{secLabels[secId] || secId}:</span>
+                        <input
+                          type="text"
+                          value={flaggedSections[secId]}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setFlaggedSections((prev) => ({ ...prev, [secId]: val }))
+                          }}
+                          placeholder={`Reason for changes in ${secLabels[secId] || secId}...`}
+                          className="w-full text-xs p-2.5 bg-background border border-border rounded-control text-text"
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              <div className="space-y-1 pt-2 border-t border-border">
+                <label className="text-xs font-bold text-text uppercase tracking-wider block">
+                  Overall Note to Owner
+                </label>
+                <textarea
+                  value={changesNote}
+                  onChange={(e) => setChangesNote(e.target.value)}
+                  placeholder="Summary note sent via SMS/WhatsApp and email to the gym owner..."
+                  rows={2}
+                  className="w-full text-xs p-2.5 bg-background border border-border rounded-control text-text"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-3">
               <Button variant="outline" onClick={() => setShowChangesDialog(false)}>
                 Cancel
               </Button>
               <Button
                 variant="primary"
-                disabled={!changesNote.trim()}
+                disabled={Object.keys(flaggedSections).length === 0 && !changesNote.trim()}
                 onClick={() => {
-                  requestGymChanges(gym.id, changesNote)
+                  const note = changesNote.trim() || Object.values(flaggedSections).filter(Boolean).join('; ') || 'Please update the flagged sections.'
+                  requestGymChanges(gym.id, note, flaggedSections)
                   setShowChangesDialog(false)
+                  setFlaggedSections({})
+                  setChangesNote('')
                 }}
               >
-                Send Request
+                Send Request to Owner
               </Button>
             </DialogFooter>
           </DialogContent>

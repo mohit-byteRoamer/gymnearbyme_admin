@@ -63,7 +63,7 @@ interface AdminContextType {
 
   approveGym: (gymId: string) => void
   rejectGym: (gymId: string, reason: string) => void
-  requestGymChanges: (gymId: string, note: string) => void
+  requestGymChanges: (gymId: string, note: string, sectionChanges?: Record<string, string>) => void
   updateGymChecklist: (gymId: string, item: keyof GymChecklist, value: boolean) => void
   suspendGym: (gymId: string, reason: string) => void
   blockGym: (gymId: string, reason: string) => void
@@ -433,6 +433,12 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       `Approved gym application for "${gym.name}" (Status: ACTIVE)`,
       { before: { status: gym.status }, after: { status: 'ACTIVE' } }
     )
+    logAudit(
+      'NOTIFICATION_SENT',
+      'Gym',
+      gymId,
+      `Dispatched SMS/WhatsApp to ${gym.phone || 'owner'} and email to ${gym.email}: Your gym "${gym.name}" has been approved and is now live!`
+    )
   }
 
   const rejectGym = (gymId: string, reason: string) => {
@@ -447,19 +453,39 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       `Rejected gym onboarding for "${gym.name}". Reason: ${reason}`,
       { before: { status: gym.status }, after: { status: 'REJECTED', rejectionReason: reason } }
     )
+    logAudit(
+      'NOTIFICATION_SENT',
+      'Gym',
+      gymId,
+      `Dispatched rejection notice via SMS/WhatsApp to ${gym.phone || 'owner'} and email to ${gym.email}. Reason: ${reason}`
+    )
   }
 
-  const requestGymChanges = (gymId: string, note: string) => {
+  const requestGymChanges = (gymId: string, note: string, sectionChanges?: Record<string, string>) => {
     const gym = gyms.find((g) => g.id === gymId)
     if (!gym) return
-    const updated: Gym = { ...gym, status: 'CHANGES_REQUESTED', requestedChangesNote: note }
+    const sections = sectionChanges && Object.keys(sectionChanges).length > 0
+      ? sectionChanges
+      : { general: note }
+    const updated: Gym = {
+      ...gym,
+      status: 'CHANGES_REQUESTED',
+      requestedChangesNote: note,
+      sectionChangeRequests: sections,
+    }
     setGyms((prev) => prev.map((g) => (g.id === gymId ? updated : g)))
     logAudit(
       'GYM_CHANGES_REQUESTED',
       'Gym',
       gymId,
-      `Requested documentation changes for "${gym.name}": ${note}`,
-      { before: { status: gym.status }, after: { status: 'CHANGES_REQUESTED', requestedChangesNote: note } }
+      `Requested section changes for "${gym.name}": ${note} (Sections: ${Object.keys(sections).join(', ')})`,
+      { before: { status: gym.status }, after: { status: 'CHANGES_REQUESTED', requestedChangesNote: note, sectionChangeRequests: sections } }
+    )
+    logAudit(
+      'NOTIFICATION_SENT',
+      'Gym',
+      gymId,
+      `Dispatched revision request via SMS/WhatsApp to ${gym.phone || 'owner'} and email to ${gym.email}: Action needed for "${gym.name}" onboarding.`
     )
   }
 

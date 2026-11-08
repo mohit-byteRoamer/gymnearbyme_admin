@@ -68,7 +68,14 @@ export interface GymChecklist {
   documents: boolean
   photos: boolean
   address: boolean
-  upiVpa: boolean
+  plansAgreement: boolean
+  upiVpa?: boolean
+}
+
+export interface DuplicateFlag {
+  field: 'phone' | 'pan' | 'bank_account' | 'name_location'
+  message: string
+  collidingGymName?: string
 }
 
 export interface Gym {
@@ -104,6 +111,13 @@ export interface Gym {
   suspensionReason?: string
   blockReason?: string
   requestedChangesNote?: string
+  sectionChangeRequests?: Record<string, string>
+  payoutAccountStatus?: 'not_started' | 'pending' | 'activated' | 'needs_info' | 'rejected'
+  duplicateFlags?: DuplicateFlag[]
+  panLast4?: string
+  bankAccountLast4?: string
+  payoutsEnabled?: boolean
+  isBookable?: boolean
   createdAt: string
   updatedAt: string
 }
