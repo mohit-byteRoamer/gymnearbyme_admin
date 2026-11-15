@@ -4,7 +4,7 @@ const envSchema = z.object({
   VITE_API_BASE_URL: z
     .string()
     .min(1, 'VITE_API_BASE_URL must not be empty')
-    .default('https://gymnearbyme-cxnvs2fg3-mohitcods-projects.vercel.app/api/v1'),
+    .default('https://gymnearbyme-api.vercel.app/api/v1'),
   MODE: z.string().default('development'),
   DEV: z.boolean().default(true),
   PROD: z.boolean().default(false),
@@ -46,7 +46,7 @@ function validateEnv() {
 
     // In development or test, return safe defaults with a warning
     return {
-      apiBaseUrl: 'https://gymnearbyme-cxnvs2fg3-mohitcods-projects.vercel.app/api/v1',
+      apiBaseUrl: 'https://gymnearbyme-api.vercel.app/api/v1',
       mode: 'development',
       isDev: true,
       isProd: false,
