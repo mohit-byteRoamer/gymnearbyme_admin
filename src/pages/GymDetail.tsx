@@ -5,6 +5,7 @@ import { Gym, GymChecklist, GymDocument, GymMedia, GymPlan, Review, Voucher } fr
 import { PaymentTransaction, RouteTransfer, PaymentStatus } from '@/types/payments'
 import { paymentsApi, formatIndianCurrency, formatWaitingTime } from '@/lib/payments-api'
 import { formatDate } from '@/lib/utils'
+import { env } from '@/config/env'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -290,48 +291,6 @@ export function GymDetailPage() {
     return matched.length > 0 ? matched : reviews.slice(0, 3)
   }, [gym, reviews])
 
-  // Copy helper
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedText(label)
-    setTimeout(() => setCopiedText(null), 2000)
-  }
-
-  if (!gym) {
-    return (
-      <div className="rounded-card border border-border bg-surface p-12 text-center my-8 shadow-subtle max-w-lg mx-auto">
-        <Building2 className="h-10 w-10 text-textMuted mx-auto mb-4" strokeWidth={1.75} />
-        <h2 className="text-lg font-medium text-text">Gym Not Found</h2>
-        <p className="mt-2 text-sm text-textMuted">
-          The gym with identifier "{id}" does not exist or has been removed.
-        </p>
-        <Button
-          variant="primary"
-          className="mt-6"
-          onClick={() => navigate('/gyms')}
-          leftIcon={<ArrowLeft className="w-4 h-4" strokeWidth={1.75} />}
-        >
-          Back to Gyms Directory
-        </Button>
-      </div>
-    )
-  }
-
-  // Financial calculations
-  const totalGrossPaise = gymPayments.reduce((sum, p) => sum + p.paidByMemberPaise, 0)
-  const totalGymSharePaise = gymPayments.reduce((sum, p) => sum + p.gymSharePaise, 0)
-  const totalHeldPaise = gymTransfers
-    .filter((t) => t.status === 'Held')
-    .reduce((sum, t) => sum + t.gymSharePaise, 0)
-  const totalSettledPaise = gymTransfers
-    .filter((t) => t.status === 'Settled' || t.status === 'Released')
-    .reduce((sum, t) => sum + t.gymSharePaise, 0)
-
-  // Checklist counts (4 items: Documents, Photos, Address and pin, Plans and agreement)
-  const checklistVerifiedCount = ['documents', 'photos', 'address', 'plansAgreement'].filter(
-    (k) => gym.checklist[k as keyof GymChecklist]
-  ).length
-
   // Duplicate checks (same phone, PAN, bank account, or same name and location)
   const duplicateFlags = useMemo(() => {
     if (!gym) return []
@@ -382,6 +341,48 @@ export function GymDetailPage() {
     return flags
   }, [gym, gyms])
 
+  // Copy helper
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedText(label)
+    setTimeout(() => setCopiedText(null), 2000)
+  }
+
+  if (!gym) {
+    return (
+      <div className="rounded-card border border-border bg-surface p-12 text-center my-8 shadow-subtle max-w-lg mx-auto">
+        <Building2 className="h-10 w-10 text-textMuted mx-auto mb-4" strokeWidth={1.75} />
+        <h2 className="text-lg font-medium text-text">Gym Not Found</h2>
+        <p className="mt-2 text-sm text-textMuted">
+          The gym with identifier "{id}" does not exist or has been removed.
+        </p>
+        <Button
+          variant="primary"
+          className="mt-6"
+          onClick={() => navigate('/gyms')}
+          leftIcon={<ArrowLeft className="w-4 h-4" strokeWidth={1.75} />}
+        >
+          Back to Gyms Directory
+        </Button>
+      </div>
+    )
+  }
+
+  // Financial calculations
+  const totalGrossPaise = gymPayments.reduce((sum, p) => sum + p.paidByMemberPaise, 0)
+  const totalGymSharePaise = gymPayments.reduce((sum, p) => sum + p.gymSharePaise, 0)
+  const totalHeldPaise = gymTransfers
+    .filter((t) => t.status === 'Held')
+    .reduce((sum, t) => sum + t.gymSharePaise, 0)
+  const totalSettledPaise = gymTransfers
+    .filter((t) => t.status === 'Settled' || t.status === 'Released')
+    .reduce((sum, t) => sum + t.gymSharePaise, 0)
+
+  // Checklist counts (4 items: Documents, Photos, Address and pin, Plans and agreement)
+  const checklistVerifiedCount = ['documents', 'photos', 'address', 'plansAgreement'].filter(
+    (k) => gym.checklist[k as keyof GymChecklist]
+  ).length
+
   return (
     <div className="space-y-6 font-roboto pb-12">
       {/* 1. Top Breadcrumb & Navigation */}
@@ -396,7 +397,7 @@ export function GymDetailPage() {
 
         <div className="flex items-center gap-2">
           <a
-            href={`http://localhost:3000/gym/${gym.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+            href={`${env.apiBaseUrl.replace('/api/v1', '')}/gym/${gym.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-control text-xs font-medium text-textMuted border border-border bg-surface hover:text-primary hover:bg-background transition-colors"

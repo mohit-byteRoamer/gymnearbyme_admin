@@ -10,6 +10,8 @@ export interface StaffUser {
   status: 'active' | 'suspended'
   lastLogin: string
   twoFactorEnabled?: boolean
+  accessToken?: string
+  refreshToken?: string
 }
 
 export interface AppUser {

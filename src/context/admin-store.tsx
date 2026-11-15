@@ -36,10 +36,12 @@ import {
   INITIAL_MASTER_DATA,
   INITIAL_CONTENT_DOCUMENTS,
 } from '@/data/mock-data'
+import { adminLogin as adminLoginApi, refreshTokens as refreshTokensApi } from '@/features/auth'
+import { setTokenGetter, setTokenRefreshHandler, setOnAuthFailure, isApiError } from '@/lib/api'
 
 interface AdminContextType {
   currentUser: StaffUser | null
-  login: (email: string, password?: string, otp?: string) => { success: boolean; error?: string }
+  login: (email: string, password?: string, otp?: string, role?: StaffRole) => Promise<{ success: boolean; error?: string }>
   logout: () => void
   switchRole: (role: StaffRole) => void
   staff: StaffUser[]
@@ -151,6 +153,8 @@ const STORAGE_KEYS = {
   AUDIT: 'gymapp_admin_v3_audit_logs',
   MASTER_DATA: 'gymapp_admin_v3_master_data',
   CONTENT_DOCUMENTS: 'gymapp_admin_v3_content_documents',
+  ACCESS_TOKEN: 'gymapp_admin_v3_access_token',
+  REFRESH_TOKEN: 'gymapp_admin_v3_refresh_token',
 }
 
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -164,7 +168,7 @@ function loadFromStorage<T>(key: string, fallback: T): T {
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<StaffUser | null>(() =>
-    loadFromStorage<StaffUser | null>(STORAGE_KEYS.CURRENT_USER, INITIAL_STAFF[0])
+    loadFromStorage<StaffUser | null>(STORAGE_KEYS.CURRENT_USER, null)
   )
   const [staff, setStaff] = useState<StaffUser[]>(() =>
     loadFromStorage<StaffUser[]>(STORAGE_KEYS.STAFF, INITIAL_STAFF)
@@ -287,42 +291,108 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setAuditLogs((prev) => [newLog, ...prev])
   }
 
-  // Authentication
-  const login = (email: string, _password?: string, otp?: string) => {
-    const member = staff.find((s) => s.email.toLowerCase() === email.toLowerCase())
-    if (!member) {
-      return { success: false, error: 'Staff account not found with this email' }
-    }
-    if (member.status === 'suspended') {
-      return { success: false, error: 'Account is suspended. Please contact super_admin.' }
-    }
-    if (member.twoFactorEnabled && otp && otp.trim() !== '123456' && otp.trim().length !== 6) {
-      return { success: false, error: 'Invalid 2FA Verification Code (Demo code is 123456)' }
+  // Authentication (POST /api/v1/auth/admin/login)
+  const login = async (
+    email: string,
+    _password?: string,
+    _otp?: string,
+    explicitRole?: StaffRole
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!email || !email.trim()) {
+      return { success: false, error: 'Email address is required' }
     }
 
-    const updated = { ...member, lastLogin: new Date().toISOString() }
-    setCurrentUser(updated)
-    setStaff((prev) => prev.map((s) => (s.id === member.id ? updated : s)))
-    logAudit('STAFF_LOGIN', 'Staff', member.id, `${member.name} logged in successfully`)
-    return { success: true }
+    const cleanEmail = email.trim().toLowerCase()
+    const role: StaffRole = explicitRole || 'super_admin'
+
+    try {
+      // Authenticate directly against backend API POST /api/v1/auth/admin/login
+      const apiRes = await adminLoginApi({ email: cleanEmail, role })
+
+      const member = staff.find((s) => s.email.toLowerCase() === cleanEmail)
+      const updated: StaffUser = {
+        id: apiRes.user.id || `staff-${cleanEmail}`,
+        name: apiRes.user.name || `${role.replace('_', ' ')} Admin`,
+        email: apiRes.user.email || cleanEmail,
+        role: apiRes.role as StaffRole,
+        phone: member?.phone || '',
+        avatar:
+          member?.avatar ||
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=128&q=80',
+        status: 'active',
+        lastLogin: new Date().toISOString(),
+        accessToken: apiRes.accessToken,
+        refreshToken: apiRes.refreshToken,
+      }
+
+      localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, apiRes.accessToken)
+      localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, apiRes.refreshToken)
+
+      setCurrentUser(updated)
+      setStaff((prev) => {
+        const exists = prev.some((s) => s.email.toLowerCase() === updated.email.toLowerCase())
+        return exists
+          ? prev.map((s) => (s.email.toLowerCase() === updated.email.toLowerCase() ? updated : s))
+          : [updated, ...prev]
+      })
+
+      logAudit('STAFF_LOGIN', 'Staff', updated.id, `${updated.name} logged in via API`)
+      return { success: true }
+    } catch (err: unknown) {
+      if (isApiError(err)) {
+        return { success: false, error: err.message || 'Authentication failed' }
+      }
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unable to connect to authentication server',
+      }
+    }
   }
 
   const logout = () => {
     if (currentUser) {
       logAudit('STAFF_LOGOUT', 'Staff', currentUser.id, `${currentUser.name} logged out`)
     }
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER)
+    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
+    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN)
     setCurrentUser(null)
   }
 
+  // Register Auth Hooks with API Client
+  useEffect(() => {
+    setTokenGetter(() => {
+      return localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) || currentUser?.accessToken || null
+    })
+
+    setTokenRefreshHandler(async () => {
+      const storedRefresh = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)
+      if (!storedRefresh) return null
+      try {
+        const res = await refreshTokensApi(storedRefresh)
+        localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, res.accessToken)
+        localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, res.refreshToken)
+        return res.accessToken
+      } catch (e) {
+        console.warn('[Auth] Failed to refresh token via API', e)
+        return null
+      }
+    })
+
+    setOnAuthFailure(() => {
+      logout()
+    })
+  }, [currentUser])
+
   const switchRole = (role: StaffRole) => {
-    const targetStaff = staff.find((s) => s.role === role) || {
-      ...INITIAL_STAFF[0],
+    if (!currentUser) return
+    const updated: StaffUser = {
+      ...currentUser,
       role,
       name: `${role.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())} Admin`,
-      email: `${role}@gymapp.internal`,
     }
-    setCurrentUser(targetStaff)
-    logAudit('ROLE_SWITCH', 'Staff', targetStaff.id, `Switched active role perspective to ${role}`)
+    setCurrentUser(updated)
+    logAudit('ROLE_SWITCH', 'Staff', updated.id, `Switched active role perspective to ${role}`)
   }
 
   // Payment Verification Actions

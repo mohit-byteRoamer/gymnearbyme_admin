@@ -4,59 +4,44 @@ import { useAdmin } from '@/context/admin-store'
 import { StaffRole } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dumbbell, AlertCircle } from 'lucide-react'
 
 export function LoginPage() {
-  const { login, staff } = useAdmin()
+  const { login } = useAdmin()
   const navigate = useNavigate()
   const location = useLocation()
 
-  const [email, setEmail] = useState('admin@gymapp.internal')
-  const [password, setPassword] = useState('password123')
-  const [otp, setOtp] = useState('')
-  const [showOtpField, setShowOtpField] = useState(false)
+  const [email, setEmail] = useState('')
+  const [role, setRole] = useState<StaffRole>('super_admin')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const from = (location.state as any)?.from?.pathname || '/dashboard'
 
-  const handleLogin = (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
     setError('')
-    setLoading(true)
 
-    const user = staff.find((s) => s.email.toLowerCase() === email.toLowerCase())
-    if (user?.twoFactorEnabled && !showOtpField) {
-      setShowOtpField(true)
-      setLoading(false)
+    if (!email.trim()) {
+      setError('Please enter your staff email address')
       return
     }
 
-    const result = login(email, password, otp)
-    setLoading(false)
-    if (result.success) {
-      navigate(from, { replace: true })
-    } else {
-      setError(result.error || 'Authentication failed. Please verify your credentials.')
-    }
-  }
+    setLoading(true)
 
-  const handleQuickLogin = (role: StaffRole, staffEmail: string) => {
-    setEmail(staffEmail)
-    setPassword('admin123')
-    setError('')
-    const user = staff.find((s) => s.email.toLowerCase() === staffEmail.toLowerCase())
-    if (user?.twoFactorEnabled) {
-      setShowOtpField(true)
-      setOtp('123456')
-    } else {
-      setShowOtpField(false)
-      setOtp('')
-    }
-    const result = login(staffEmail, 'admin123', '123456')
-    if (result.success) {
-      navigate(from, { replace: true })
+    try {
+      const result = await login(email.trim(), password, undefined, role)
+      setLoading(false)
+      if (result.success) {
+        navigate(from, { replace: true })
+      } else {
+        setError(result.error || 'Authentication failed. Please check your credentials.')
+      }
+    } catch (err: unknown) {
+      setLoading(false)
+      setError(err instanceof Error ? err.message : 'Authentication failed')
     }
   }
 
@@ -79,7 +64,7 @@ export function LoginPage() {
           <CardHeader className="p-0 border-0 space-y-1">
             <CardTitle>Sign in</CardTitle>
             <p className="text-sm text-textMuted font-normal">
-              Enter your staff credentials to continue
+              Enter your administrator credentials to continue
             </p>
           </CardHeader>
 
@@ -98,11 +83,28 @@ export function LoginPage() {
               <label className="block text-sm font-medium text-text">Email address</label>
               <Input
                 type="email"
-                placeholder="staff@gymapp.internal"
+                placeholder="admin@yourdomain.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
                 required
+                disabled={loading}
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-text">Staff role</label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as StaffRole)}
+                disabled={loading}
+                className="w-full h-10 px-3 rounded-control border border-border bg-surface text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="super_admin">Super Admin</option>
+                <option value="finance">Finance</option>
+                <option value="moderator">Moderator</option>
+                <option value="support">Support</option>
+              </select>
             </div>
 
             <div className="space-y-1.5">
@@ -112,72 +114,22 @@ export function LoginPage() {
                 placeholder="••••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 required
+                disabled={loading}
               />
             </div>
-
-            {showOtpField && (
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-text">
-                  Two-factor authentication code
-                </label>
-                <Input
-                  type="text"
-                  placeholder="Enter 6-digit code"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  maxLength={6}
-                  required
-                />
-              </div>
-            )}
 
             <Button
               type="submit"
               variant="primary"
               className="w-full"
               isLoading={loading}
+              disabled={loading}
             >
               Sign in
             </Button>
           </form>
-
-          {/* Quick Login Role Shortcuts */}
-          <div className="pt-4 border-t border-border space-y-2">
-            <span className="text-xs text-textMuted block text-center">
-              Quick access demo roles
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleQuickLogin('super_admin', 'admin@gymapp.internal')}
-              >
-                Super Admin
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleQuickLogin('finance', 'pooja.finance@gymapp.internal')}
-              >
-                Finance
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleQuickLogin('moderator', 'ananya.mod@gymapp.internal')}
-              >
-                Moderator
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleQuickLogin('support', 'karan.support@gymapp.internal')}
-              >
-                Support
-              </Button>
-            </div>
-          </div>
         </Card>
       </div>
     </div>

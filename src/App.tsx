@@ -23,6 +23,7 @@ import { NotificationsPage } from '@/pages/Notifications'
 import { MasterDataPage } from '@/pages/MasterData'
 import { ContentPages } from '@/pages/ContentPages'
 import { SettingsPage } from '@/pages/Settings'
+import { UserManagementDemo } from '@/features/users/components/UserManagementDemo'
 
 export function App() {
   return (
@@ -58,6 +59,7 @@ export function App() {
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="master-data" element={<MasterDataPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="api-demo" element={<UserManagementDemo />} />
           </Route>
 
           {/* Catch-all fallback */}
