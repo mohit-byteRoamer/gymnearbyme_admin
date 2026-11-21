@@ -18,7 +18,9 @@ import {
   SEED_PAYOUT_STATS,
 } from '../data/payments-seed'
 
-const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || 'http://localhost:3001'
+import { env } from '../config/env'
+
+const API_BASE_URL = env.apiBaseUrl
 
 /**
  * Format money in integer paise into standard Indian Rupee notation with Indian comma grouping.

@@ -16,11 +16,25 @@ function validateEnv() {
   const nodeProcess = globalObj.process as { env?: Record<string, string | undefined> } | undefined
   const procEnv = nodeProcess?.env ?? {}
 
-  const rawBaseUrl =
+  const PRODUCTION_API_URL = 'https://gymnearbyme-api.vercel.app/api/v1'
+  const STALE_PREVIEWS = ['cxnvs2fg3', 'mohitcods-projects.vercel.app']
+
+  const candidateUrl =
     metaEnv?.VITE_API_BASE_URL ??
     metaEnv?.VITE_API_URL ??
     procEnv.VITE_API_BASE_URL ??
     procEnv.VITE_API_URL
+
+  // If environment variable is missing, or points to an expired/SSO-protected preview URL, redirect to permanent production API
+  let rawBaseUrl: string =
+    candidateUrl && !STALE_PREVIEWS.some((p) => candidateUrl.includes(p))
+      ? candidateUrl
+      : PRODUCTION_API_URL
+
+  // Ensure trailing /api/v1
+  if (!rawBaseUrl.endsWith('/api/v1')) {
+    rawBaseUrl = rawBaseUrl.replace(/\/+$/, '') + (rawBaseUrl.endsWith('/api') ? '/v1' : '/api/v1')
+  }
 
   const rawMode = metaEnv?.MODE ?? procEnv.NODE_ENV ?? 'development'
   const isDev = metaEnv?.DEV ?? rawMode !== 'production'
