@@ -17,7 +17,6 @@ function validateEnv() {
   const procEnv = nodeProcess?.env ?? {}
 
   const PRODUCTION_API_URL = 'https://gymnearbyme-api.vercel.app/api/v1'
-  const STALE_PREVIEWS = ['cxnvs2fg3', 'mohitcods-projects.vercel.app']
 
   const candidateUrl =
     metaEnv?.VITE_API_BASE_URL ??
@@ -25,9 +24,19 @@ function validateEnv() {
     procEnv.VITE_API_BASE_URL ??
     procEnv.VITE_API_URL
 
-  // If environment variable is missing, or points to an expired/SSO-protected preview URL, redirect to permanent production API
+  const isInvalidOrPreview = (url?: string): boolean => {
+    if (!url) return true
+    if (url.includes('gymnearbyme-api.vercel.app')) return false
+    if (url.includes('localhost') || url.includes('127.0.0.1')) return false
+    // Any other *.vercel.app domain (like preview or branch deployments) must never be used as backend API
+    if (url.includes('vercel.app')) return true
+    if (url.includes('cxnvs2fg3') || url.includes('mohitcods-projects')) return true
+    return false
+  }
+
+  // Always route to permanent production API unless running locally against localhost/127.0.0.1
   let rawBaseUrl: string =
-    candidateUrl && !STALE_PREVIEWS.some((p) => candidateUrl.includes(p))
+    candidateUrl && !isInvalidOrPreview(candidateUrl)
       ? candidateUrl
       : PRODUCTION_API_URL
 
