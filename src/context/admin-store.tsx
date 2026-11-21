@@ -137,24 +137,39 @@ interface AdminContextType {
 const AdminContext = createContext<AdminContextType | undefined>(undefined)
 
 const STORAGE_KEYS = {
-  CURRENT_USER: 'gymapp_admin_v3_current_user',
-  STAFF: 'gymapp_admin_v3_staff',
-  USERS: 'gymapp_admin_v3_users',
-  GYMS: 'gymapp_admin_v3_gyms',
-  VOUCHERS: 'gymapp_admin_v3_vouchers',
-  REFUNDS: 'gymapp_admin_v3_refunds',
-  FEATURED: 'gymapp_admin_v3_featured',
-  CITIES: 'gymapp_admin_v3_cities',
-  LOCALITIES: 'gymapp_admin_v3_localities',
-  REVIEWS: 'gymapp_admin_v3_reviews',
-  TICKETS: 'gymapp_admin_v3_tickets',
-  BROADCASTS: 'gymapp_admin_v3_broadcasts',
-  SETTINGS: 'gymapp_admin_v3_settings',
-  AUDIT: 'gymapp_admin_v3_audit_logs',
-  MASTER_DATA: 'gymapp_admin_v3_master_data',
-  CONTENT_DOCUMENTS: 'gymapp_admin_v3_content_documents',
-  ACCESS_TOKEN: 'gymapp_admin_v3_access_token',
-  REFRESH_TOKEN: 'gymapp_admin_v3_refresh_token',
+  CURRENT_USER: 'gymapp_admin_v4_current_user',
+  STAFF: 'gymapp_admin_v4_staff',
+  USERS: 'gymapp_admin_v4_users',
+  GYMS: 'gymapp_admin_v4_gyms',
+  VOUCHERS: 'gymapp_admin_v4_vouchers',
+  REFUNDS: 'gymapp_admin_v4_refunds',
+  FEATURED: 'gymapp_admin_v4_featured',
+  CITIES: 'gymapp_admin_v4_cities',
+  LOCALITIES: 'gymapp_admin_v4_localities',
+  REVIEWS: 'gymapp_admin_v4_reviews',
+  TICKETS: 'gymapp_admin_v4_tickets',
+  BROADCASTS: 'gymapp_admin_v4_broadcasts',
+  SETTINGS: 'gymapp_admin_v4_settings',
+  AUDIT: 'gymapp_admin_v4_audit_logs',
+  MASTER_DATA: 'gymapp_admin_v4_master_data',
+  CONTENT_DOCUMENTS: 'gymapp_admin_v4_content_documents',
+  ACCESS_TOKEN: 'gymapp_admin_v4_access_token',
+  REFRESH_TOKEN: 'gymapp_admin_v4_refresh_token',
+}
+
+// Clear legacy dummy/mock storage cache from previous versions
+if (typeof window !== 'undefined' && window.localStorage) {
+  try {
+    Object.keys(localStorage).forEach((k) => {
+      if (
+        k.startsWith('gymapp_admin_v3_') ||
+        k.startsWith('gymapp_admin_v2_') ||
+        k.startsWith('gymapp_admin_v1_')
+      ) {
+        localStorage.removeItem(k)
+      }
+    })
+  } catch {}
 }
 
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -174,19 +189,19 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     loadFromStorage<StaffUser[]>(STORAGE_KEYS.STAFF, INITIAL_STAFF)
   )
   const [users, setUsers] = useState<AppUser[]>(() =>
-    loadFromStorage<AppUser[]>(STORAGE_KEYS.USERS, INITIAL_USERS)
+    loadFromStorage<AppUser[]>(STORAGE_KEYS.USERS, [])
   )
   const [gyms, setGyms] = useState<Gym[]>(() =>
-    loadFromStorage<Gym[]>(STORAGE_KEYS.GYMS, INITIAL_GYMS)
+    loadFromStorage<Gym[]>(STORAGE_KEYS.GYMS, [])
   )
   const [vouchers, setVouchers] = useState<Voucher[]>(() =>
-    loadFromStorage<Voucher[]>(STORAGE_KEYS.VOUCHERS, INITIAL_VOUCHERS)
+    loadFromStorage<Voucher[]>(STORAGE_KEYS.VOUCHERS, [])
   )
   const [refunds, setRefunds] = useState<RefundRequest[]>(() =>
-    loadFromStorage<RefundRequest[]>(STORAGE_KEYS.REFUNDS, INITIAL_REFUNDS)
+    loadFromStorage<RefundRequest[]>(STORAGE_KEYS.REFUNDS, [])
   )
   const [featured, setFeatured] = useState<FeaturedListing[]>(() =>
-    loadFromStorage<FeaturedListing[]>(STORAGE_KEYS.FEATURED, INITIAL_FEATURED)
+    loadFromStorage<FeaturedListing[]>(STORAGE_KEYS.FEATURED, [])
   )
   const [cities, setCities] = useState<City[]>(() =>
     loadFromStorage<City[]>(STORAGE_KEYS.CITIES, INITIAL_CITIES)
@@ -195,19 +210,19 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     loadFromStorage<Locality[]>(STORAGE_KEYS.LOCALITIES, INITIAL_LOCALITIES)
   )
   const [reviews, setReviews] = useState<Review[]>(() =>
-    loadFromStorage<Review[]>(STORAGE_KEYS.REVIEWS, INITIAL_REVIEWS)
+    loadFromStorage<Review[]>(STORAGE_KEYS.REVIEWS, [])
   )
   const [tickets, setTickets] = useState<SupportTicket[]>(() =>
-    loadFromStorage<SupportTicket[]>(STORAGE_KEYS.TICKETS, INITIAL_TICKETS)
+    loadFromStorage<SupportTicket[]>(STORAGE_KEYS.TICKETS, [])
   )
   const [broadcasts, setBroadcasts] = useState<BroadcastNotification[]>(() =>
-    loadFromStorage<BroadcastNotification[]>(STORAGE_KEYS.BROADCASTS, INITIAL_BROADCASTS)
+    loadFromStorage<BroadcastNotification[]>(STORAGE_KEYS.BROADCASTS, [])
   )
   const [settings, setSettings] = useState<PlatformSettings>(() =>
     loadFromStorage<PlatformSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS)
   )
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() =>
-    loadFromStorage<AuditLog[]>(STORAGE_KEYS.AUDIT, INITIAL_AUDIT_LOGS)
+    loadFromStorage<AuditLog[]>(STORAGE_KEYS.AUDIT, [])
   )
   const [masterData, setMasterData] = useState<MasterDataItem[]>(() =>
     loadFromStorage<MasterDataItem[]>(STORAGE_KEYS.MASTER_DATA, INITIAL_MASTER_DATA)
@@ -1251,22 +1266,22 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const resetToDefaultData = () => {
     setCurrentUser(INITIAL_STAFF[0])
     setStaff(INITIAL_STAFF)
-    setUsers(INITIAL_USERS)
-    setGyms(INITIAL_GYMS)
-    setVouchers(INITIAL_VOUCHERS)
-    setRefunds(INITIAL_REFUNDS)
-    setFeatured(INITIAL_FEATURED)
+    setUsers([])
+    setGyms([])
+    setVouchers([])
+    setRefunds([])
+    setFeatured([])
     setCities(INITIAL_CITIES)
     setLocalities(INITIAL_LOCALITIES)
-    setReviews(INITIAL_REVIEWS)
-    setTickets(INITIAL_TICKETS)
-    setBroadcasts(INITIAL_BROADCASTS)
+    setReviews([])
+    setTickets([])
+    setBroadcasts([])
     setSettings(INITIAL_SETTINGS)
-    setAuditLogs(INITIAL_AUDIT_LOGS)
+    setAuditLogs([])
     setMasterData(INITIAL_MASTER_DATA)
     setContentDocuments(INITIAL_CONTENT_DOCUMENTS)
     localStorage.clear()
-    alert('Mock data has been reset to defaults!')
+    alert('Dashboard data reset: all dummy/testing items cleared!')
   }
 
   return (

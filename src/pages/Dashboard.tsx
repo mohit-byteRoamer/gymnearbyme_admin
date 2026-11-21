@@ -38,28 +38,35 @@ export function DashboardPage() {
   // Full-collection marketplace financial metrics
   const grossCollected = vouchers
     .filter((v) => v.status === 'ACTIVE' || v.status === 'REDEEMED' || v.status === 'FEE_PENDING_VERIFICATION')
-    .reduce((acc, v) => acc + (v.amount || 2999), 0) || 184500
+    .reduce((acc, v) => acc + (v.amount || 0), 0)
 
   const platformCommission = vouchers
     .filter((v) => v.status === 'ACTIVE' || v.status === 'REDEEMED')
-    .reduce((acc, v) => acc + (v.feeAmount || Math.round((v.amount || 2999) * 0.2)), 0) || 36900
+    .reduce((acc, v) => acc + (v.feeAmount || Math.round((v.amount || 0) * 0.2)), 0)
 
-  const heldForGyms = 48200
-  const releasedThisWeek = 99400
+  const heldForGyms = vouchers
+    .filter((v) => v.status === 'ACTIVE')
+    .reduce((acc, v) => acc + Math.round((v.amount || 0) * 0.8), 0)
+
+  const releasedThisWeek = vouchers
+    .filter((v) => v.status === 'REDEEMED')
+    .reduce((acc, v) => acc + Math.round((v.amount || 0) * 0.8), 0)
 
   // Chart data: Joining fees for last 7 days (INR)
-  const feeTrendData = [
-    { day: 'Mon', fee: 2450 },
-    { day: 'Tue', fee: 3100 },
-    { day: 'Wed', fee: 2800 },
-    { day: 'Thu', fee: 4200 },
-    { day: 'Fri', fee: 5100 },
-    { day: 'Sat', fee: 6800 },
-    { day: 'Sun', fee: 5900 },
-  ]
+  const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const feeTrendData = daysOfWeek.map((day) => ({
+    day,
+    fee: vouchers
+      .filter((v) => {
+        if (!v.createdAt) return false
+        const d = new Date(v.createdAt).toLocaleDateString('en-US', { weekday: 'short' })
+        return d === day && (v.status === 'ACTIVE' || v.status === 'REDEEMED')
+      })
+      .reduce((acc, v) => acc + (v.feeAmount || Math.round((v.amount || 0) * 0.2)), 0),
+  }))
 
   // Vouchers by status breakdown
-  const totalVouchers = vouchers.length || 1
+  const totalVouchers = vouchers.length || 0
   const activeVouchers = vouchers.filter((v) => v.status === 'ACTIVE').length
   const redeemedVouchers = vouchers.filter((v) => v.status === 'REDEEMED').length
   const pendingVouchers = pendingPayments.length
@@ -75,7 +82,7 @@ export function DashboardPage() {
   ]
 
   // New members this month
-  const newMembersCount = activeVouchers + redeemedVouchers + 18
+  const newMembersCount = activeVouchers + redeemedVouchers
 
   return (
     <div className="space-y-6 font-roboto">
