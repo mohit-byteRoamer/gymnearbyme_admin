@@ -309,7 +309,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   // Authentication (POST /api/v1/auth/admin/login)
   const login = async (
     email: string,
-    _password?: string,
+    password?: string,
     _otp?: string,
     explicitRole?: StaffRole
   ): Promise<{ success: boolean; error?: string }> => {
@@ -322,7 +322,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
     try {
       // Authenticate directly against backend API POST /api/v1/auth/admin/login
-      const apiRes = await adminLoginApi({ email: cleanEmail, role })
+      const apiRes = await adminLoginApi({ email: cleanEmail, password: password?.trim(), role })
 
       const member = staff.find((s) => s.email.toLowerCase() === cleanEmail)
       const updated: StaffUser = {

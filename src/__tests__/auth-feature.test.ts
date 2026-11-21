@@ -11,13 +11,15 @@ describe('Admin Authentication Feature - Unit Tests', () => {
   describe('Zod Schema Validation', () => {
     it('validates admin login request with defaults', () => {
       const payload = {
-        email: 'admin@gymapp.internal',
+        email: 'mohit878421@gmail.com',
+        password: 'Pass@123',
         role: 'super_admin' as const,
       }
       const parsed = adminLoginRequestSchema.safeParse(payload)
       assert.strictEqual(parsed.success, true)
       if (parsed.success) {
-        assert.strictEqual(parsed.data.email, 'admin@gymapp.internal')
+        assert.strictEqual(parsed.data.email, 'mohit878421@gmail.com')
+        assert.strictEqual(parsed.data.password, 'Pass@123')
         assert.strictEqual(parsed.data.role, 'super_admin')
       }
     })
@@ -31,9 +33,9 @@ describe('Admin Authentication Feature - Unit Tests', () => {
     it('validates successful POST /api/v1/auth/admin/login response structure', () => {
       const mockResponse = {
         user: {
-          id: 'staff-admin@gymapp.internal',
-          email: 'admin@gymapp.internal',
-          name: 'SUPER ADMIN Admin',
+          id: 'staff-mohit',
+          email: 'mohit878421@gmail.com',
+          name: 'Mohit (Super Admin)',
         },
         role: 'super_admin',
         accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
@@ -43,7 +45,7 @@ describe('Admin Authentication Feature - Unit Tests', () => {
       const parsed = adminLoginResponseSchema.safeParse(mockResponse)
       assert.strictEqual(parsed.success, true)
       if (parsed.success) {
-        assert.strictEqual(parsed.data.user.id, 'staff-admin@gymapp.internal')
+        assert.strictEqual(parsed.data.user.id, 'staff-mohit')
         assert.strictEqual(parsed.data.role, 'super_admin')
         assert.ok(parsed.data.accessToken.length > 10)
         assert.ok(parsed.data.refreshToken.length > 10)

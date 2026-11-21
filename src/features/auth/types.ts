@@ -4,6 +4,7 @@ export const staffRoleSchema = z.enum(['super_admin', 'finance', 'support', 'mod
 
 export const adminLoginRequestSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
+  password: z.string().optional(),
   role: staffRoleSchema.default('super_admin'),
 })
 
