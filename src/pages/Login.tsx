@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAdmin } from '@/context/admin-store'
-import { StaffRole } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,7 +12,6 @@ export function LoginPage() {
   const location = useLocation()
 
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<StaffRole>('super_admin')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -25,14 +23,19 @@ export function LoginPage() {
     setError('')
 
     if (!email.trim()) {
-      setError('Please enter your staff email address')
+      setError('Please enter your administrator email address')
+      return
+    }
+
+    if (!password) {
+      setError('Please enter your password')
       return
     }
 
     setLoading(true)
 
     try {
-      const result = await login(email.trim(), password, undefined, role)
+      const result = await login(email.trim(), password, undefined, 'super_admin')
       setLoading(false)
       if (result.success) {
         navigate(from, { replace: true })
@@ -90,21 +93,6 @@ export function LoginPage() {
                 required
                 disabled={loading}
               />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-sm font-medium text-text">Staff role</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as StaffRole)}
-                disabled={loading}
-                className="w-full h-10 px-3 rounded-control border border-border bg-surface text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="super_admin">Super Admin</option>
-                <option value="finance">Finance</option>
-                <option value="moderator">Moderator</option>
-                <option value="support">Support</option>
-              </select>
             </div>
 
             <div className="space-y-1.5">
