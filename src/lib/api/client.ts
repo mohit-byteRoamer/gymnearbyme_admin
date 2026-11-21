@@ -222,8 +222,12 @@ export function normalizeError(error: unknown, config?: RequestConfig): ApiError
     let details: unknown = undefined
 
     if (data && typeof data === 'object') {
+      const errorObj = data.error && typeof data.error === 'object' ? (data.error as Record<string, unknown>) : null
+
       if (typeof data.code === 'string') {
         code = data.code
+      } else if (errorObj && typeof errorObj.code === 'string') {
+        code = errorObj.code
       } else if (typeof data.error === 'string') {
         code = data.error
       } else {
@@ -259,11 +263,13 @@ export function normalizeError(error: unknown, config?: RequestConfig): ApiError
 
       if (typeof data.message === 'string') {
         message = data.message
+      } else if (errorObj && typeof errorObj.message === 'string') {
+        message = errorObj.message
       } else if (typeof data.error === 'string') {
         message = data.error
       }
 
-      details = data.details ?? data.errors
+      details = data.details ?? data.errors ?? (errorObj && (errorObj.details ?? errorObj.errors))
     } else if (typeof data === 'string' && data.length > 0) {
       message = data
     }

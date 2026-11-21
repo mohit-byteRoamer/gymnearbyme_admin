@@ -53,6 +53,28 @@ describe('Production API Layer - Unit Tests', () => {
       assert.strictEqual(normalized.message, 'Database connection failed')
       assert.strictEqual(normalized.code, 'UNKNOWN_ERROR')
     })
+
+    it('extracts nested backend error message from response.data.error.message', () => {
+      const axiosLikeError = {
+        isAxiosError: true,
+        message: 'Request failed with status code 401',
+        response: {
+          status: 401,
+          data: {
+            success: false,
+            statusCode: 401,
+            error: {
+              message: 'Account with email "user@example.com" not found in database',
+            },
+          },
+        },
+      }
+      const normalized = normalizeError(axiosLikeError)
+
+      assert.strictEqual(isApiError(normalized), true)
+      assert.strictEqual(normalized.status, 401)
+      assert.strictEqual(normalized.message, 'Account with email "user@example.com" not found in database')
+    })
   })
 
   describe('Query Key Factory', () => {
